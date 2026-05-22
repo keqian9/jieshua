@@ -12,11 +12,9 @@
 
 ## 下载
 
+**请用手机浏览器打开此页面下载**（微信会拦截 APK 下载）
+
 👉 **[下载 APK (v1.0.0)](https://github.com/keqian9/jieshua/releases/latest/download/app-debug.apk)**
-
-或者用手机扫描下方二维码直接下载：
-
-![下载二维码](qrcode.png)
 
 ## 使用方法
 

@@ -6,9 +6,11 @@ import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,14 +22,15 @@ class FGuardService : BaseBlockingService() {
 
     private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val mutex = Mutex()
-    private var lastEventTimeStamp = 0L
+    private var lastBlockTimeStamp = 0L
 
     // 每日限额（毫秒），默认30分钟
     private val dailyLimitMs = 30 * 60 * 1000L
 
-    // 当前正在追踪的使用（包名 → 开始时间戳）
+    // 当前正在追踪的使用
     private var currentTrackedPackage: String? = null
     private var currentTrackStartMs: Long = 0L
+    private var periodicCheckJob: Job? = null
 
     private val monitoredApps = hashSetOf(
         // === 短视频 (12款) ===
@@ -59,7 +62,7 @@ class FGuardService : BaseBlockingService() {
         "com.esbook.reader",              // 宜搜小说
     )
 
-    // 微信内部界面拦截（仅限微信的视频号和直播，不误伤朋友圈和聊天）
+    // 微信内部界面拦截
     private val wechatPackage = "com.tencent.mm"
     private val blockedContentDescriptions = hashSetOf(
         "视频号",
@@ -84,20 +87,17 @@ class FGuardService : BaseBlockingService() {
             startTrackingIfMonitored(packageName)
         }
 
-        if (monitoredApps.contains(packageName)) {
-            // 每个 WINDOW_STATE_CHANGED 检查是否超时
-            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                checkTimeLimitAndBlock()
-            }
+        // 每次窗口变化时检查（切换App触发）
+        if (isCurrentlyTracking()) {
+            checkTimeLimitAndBlock()
         }
 
-        // 仅在微信内且未超时时检测视频号/直播界面
+        // 仅在微信内检测视频号/直播界面
         if (packageName == wechatPackage &&
             !isOverDailyLimit() &&
             event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val descriptions = collectContentDescriptions(event.source)
             if (descriptions.any { text -> blockedContentDescriptions.any { blocked -> text.contains(blocked) } }) {
-                // 开始追踪微信内刷视频号的时间
                 startTrackingIfMonitored(wechatPackage + "/finder")
                 checkTimeLimitAndBlock()
             }
@@ -108,14 +108,14 @@ class FGuardService : BaseBlockingService() {
 
     private fun getTodayKey(): String = dateFormat.format(Date())
 
-    private fun getTodayUsedMs(): Long {
-        return prefs.getLong(getTodayKey(), 0L)
-    }
+    private fun getTodayUsedMs(): Long = prefs.getLong(getTodayKey(), 0L)
+
+    private fun isCurrentlyTracking(): Boolean =
+        currentTrackedPackage != null && currentTrackStartMs > 0L
 
     private fun isOverDailyLimit(): Boolean {
         val todayUsed = getTodayUsedMs()
-        // 加上当前正在追踪的未保存时长
-        val currentSession = if (currentTrackedPackage != null && currentTrackStartMs > 0L) {
+        val currentSession = if (isCurrentlyTracking()) {
             SystemClock.uptimeMillis() - currentTrackStartMs
         } else 0L
         return (todayUsed + currentSession) >= dailyLimitMs
@@ -126,10 +126,24 @@ class FGuardService : BaseBlockingService() {
             packageName.startsWith(wechatPackage + "/finder")) {
             currentTrackedPackage = packageName
             currentTrackStartMs = SystemClock.uptimeMillis()
+            // 启动周期性检查，每2秒判断一次是否超时
+            periodicCheckJob?.cancel()
+            periodicCheckJob = coroutineScope.launch {
+                while (isActive) {
+                    delay(2000)
+                    if (isOverDailyLimit()) {
+                        performBlock()
+                    }
+                }
+            }
         }
     }
 
     private fun endTrackingCurrent() {
+        // 停止周期性检查
+        periodicCheckJob?.cancel()
+        periodicCheckJob = null
+
         val pkg = currentTrackedPackage ?: return
         if (currentTrackStartMs <= 0L) {
             currentTrackedPackage = null
@@ -146,13 +160,18 @@ class FGuardService : BaseBlockingService() {
     }
 
     private fun checkTimeLimitAndBlock() {
-        if (!isOverDailyLimit()) return
-        if (!isDelayOver(lastEventTimeStamp, 2000)) return
+        if (isOverDailyLimit()) {
+            performBlock()
+        }
+    }
+
+    private fun performBlock() {
+        if (!isDelayOver(lastBlockTimeStamp, 2000)) return
 
         coroutineScope.launch {
             mutex.withLock {
                 performGlobalAction(GLOBAL_ACTION_HOME)
-                lastEventTimeStamp = SystemClock.uptimeMillis()
+                lastBlockTimeStamp = SystemClock.uptimeMillis()
             }
         }
     }
@@ -170,6 +189,7 @@ class FGuardService : BaseBlockingService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        periodicCheckJob?.cancel()
         endTrackingCurrent()
         coroutineScope.cancel()
         super.onDestroy()

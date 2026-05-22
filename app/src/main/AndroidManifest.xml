@@ -2,9 +2,33 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <queries>
-        <package android:name="com.facebook.katana" />
-        <package android:name="com.facebook.lite" />
-        <package android:name="com.facebook.android" />
+        <!-- 短视频 -->
+        <package android:name="com.ss.android.ugc.aweme" />
+        <package android:name="com.ss.android.ugc.aweme.lite" />
+        <package android:name="com.ss.android.ugc.live" />
+        <package android:name="com.smile.gifmaker" />
+        <package android:name="com.kuaishou.nebula" />
+        <package android:name="com.tencent.weishi" />
+        <package android:name="com.xingin.xhs" />
+        <package android:name="tv.danmaku.bili" />
+        <package android:name="com.ss.android.article.video" />
+        <package android:name="com.sup.android.superb" />
+        <package android:name="com.meitu.meipaimv" />
+        <package android:name="com.google.android.youtube" />
+        <!-- 网文小说 -->
+        <package android:name="com.dragon.read" />
+        <package android:name="com.chaozh.iReader" />
+        <package android:name="com.chaozh.iReaderFree" />
+        <package android:name="com.zhangyue.read.ireadercn" />
+        <package android:name="com.qidian.QDReader" />
+        <package android:name="com.qq.reader" />
+        <package android:name="com.tencent.weread" />
+        <package android:name="com.kmxs.reader" />
+        <package android:name="com.shuqi.controller" />
+        <package android:name="com.faloo.BookReader4Android" />
+        <package android:name="com.jjwxc.reader" />
+        <package android:name="com.ushaqi.zhuishushenqi" />
+        <package android:name="com.esbook.reader" />
     </queries>
 
     <application

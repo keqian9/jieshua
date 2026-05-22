@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">fGuard</string>
+    <string name="app_name">戒刷</string>
 
-    <string name="accessibility_service_label">fGuard Service</string>
-    <string name="accessibility_service_description">Block Facebook automatically</string>
+    <string name="accessibility_service_label">戒刷 - 辅助服务</string>
+    <string name="accessibility_service_description">自动拦截短视频和网文小说App，帮你节省时间。不会收集任何个人数据。</string>
 </resources>
